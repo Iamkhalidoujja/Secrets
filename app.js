@@ -7,7 +7,8 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 
 //follow-ups
@@ -53,18 +54,20 @@ app.get("/register", function(req, res){
 //POST requests
 ///////////////////////////To register
 app.post("/register", function(req, res){
-  //creating the new user
-  const newUser = new User({
-    email: req.body.username,
-    password: md5(req.body.password)
-  });
-  //saving the user in the database userDB
-  newUser.save(function(err){
-    if(err){
-      res.send(err)
-    }else{
-      res.render("secrets");
-    }
+  //creating the new user and encrypting his password HASH bcrypt
+  bcrypt.hash(req.body.password, saltRounds, function(err, hash){
+    const newUser = new User({
+      email: req.body.username,
+      password: hash
+    });
+    //saving the user in the database userDB
+    newUser.save(function(err){
+      if(err){
+        res.send(err)
+      }else{
+        res.render("secrets");
+      }
+    });
   });
 });
 
@@ -72,18 +75,21 @@ app.post("/register", function(req, res){
 app.post("/login", function(req, res){
   //check is there's a user in our database matching what's been requested
   const username = req.body.username;
-  const password = md5(req.body.password);
+  const password = req.body.password;
 
   User.findOne({email: username}, function(err, foundUser){
       if(err){
         console.log(err);
       }else{
         if(foundUser){
-          if(foundUser.password === password){
-            res.render("secrets");
-          }else{
-            console.log("Wrong password");
-          }
+          bcrypt.compare(password, foundUser.password, function(err, result){
+            //foundUser.password stores the hashed password of the foundUser!
+            if(result === true){  //if the password is correct
+              res.render("secrets");
+            }else{
+              console.log("Wrong password!");
+            }
+          })
         }else{
           console.log("User not found");
         }
